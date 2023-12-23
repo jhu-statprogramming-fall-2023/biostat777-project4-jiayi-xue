@@ -1,0 +1,406 @@
+---
+title: "Project4"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: scroll
+    source_code: embed
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(here)
+library(shiny)
+library(DT)
+library(vembedr)
+
+```
+
+# About
+
+## Column {data-width=650}
+
+**The purpose of the dashboard:**
+
+I tried to use this dashboard to show the relationship between light levels and bird collisions with or without flight calls. Also we want to identify the difference of bird collisions frequency among different bird species and habitat.
+
+**Link or original location of the data:** 
+
+I downloaded this dataset from [here](https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-04-30/bird_collisions.csv). You can also download this dataset using "tidytuesdayR" package.
+
+## Column {data-width=650}
+
+<iframe
+    width="640"
+    height="480"
+    src="https://www.youtube.com/embed/LXF2WZSgqww?si=BF1RAGi0LGsilbsJ"
+    frameborder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen
+>
+</iframe>
+
+
+
+
+# The Data {data-width=600}
+
+```{r, echo = FALSE}
+
+if (!dir.exists(here("data"))) {
+    dir.create(here("data"))
+}
+
+# saves data only once (not each time you knit a R Markdown)
+if (!file.exists(here("data", "bird_collisions.rda"))) {
+    url_csv <- "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-04-30/bird_collisions.csv"
+    bird_collisions <- readr::read_csv(url_csv)
+
+    # save the file to rda objects
+    save(bird_collisions, file = here("data", "bird_collisions.rda"))
+}
+
+# Read in the data locally
+load(here("data", "bird_collisions.rda"))
+
+# load the second dataset
+if (!file.exists(here("data", "mp_light.rda"))) {
+    url_csv <- "https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-04-30/mp_light.csv"
+    mp_light <- readr::read_csv(url_csv)
+
+    # save the file to rda objects
+    save(mp_light, file = here("data", "mp_light.rda"))
+}
+
+# Read in the data locally
+load(here("data", "mp_light.rda"))
+
+
+```
+
+## Column {.tabset .tab-fade data-height="10" data-width="200"}
+
+### About the Data
+
+The data comes from a research which examined nocturnal flight-calling behavior and vulnerability to artificial light in migratory birds in Chicago. I downloaded this dataset from [here](https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-04-30/bird_collisions.csv). You can also download this dataset using "tidytuesdayR" package. The data I used only containing the raw and tamed Chicago dataset as it is the most complete.
+
+### Bird_collisions Dataset
+
+```{r, echo=FALSE}
+
+DT::renderDataTable({
+  DT::datatable(bird_collisions,
+                caption = htmltools::tags$caption(
+                  style = 'caption-side: top; text-align: Left;'),
+                options = list(
+                               scroller = TRUE,
+                               pageLength = 100,
+                               scrollY = '450px'))
+})
+
+```
+
+### mp_light Dataset
+
+```{r, echo=FALSE}
+
+DT::renderDataTable({
+  DT::datatable(mp_light,
+                caption = htmltools::tags$caption(
+                  style = 'caption-side: top; text-align: Left;'),
+                options = list(
+                               scroller = TRUE,
+                               scrollY = '450px'))
+})
+
+```
+
+# Analysis
+
+## Row {.tabset .tab-fade data-height="10" data-width="200"}
+
+### The Effects of Light 
+
+
+In order to look at the effects of light on bird collisions, we join the two datasets, which may drop many rows in the bird_collisions data frame.
+
+```{r, echo=FALSE}
+bird_collisions_light <- inner_join(bird_collisions, mp_light,
+                                   by = "date")
+
+```
+
+First of all, let's look at the relationship between bird collision counts of species and the flight calls. There are two species (Pipilo erythrophthalmus and Tyrannus tyrannus) giving nocturnal flight calls only rarely. During the data analysis, authors found that "classification of these species as ‘yes’ or ‘no’ for flight-calling behaviour did not affect our results" and classified these two species as ‘no’[@Winger2019Nocturnal]. Here, we also classified these two species as 'no' to make analysis easier.
+
+```{r, echo=FALSE}
+
+is_yes <- function(x) ifelse(x == "Yes", 1, 0)
+is_no <- function(x) ifelse(x == "No" || x == "Rare", 1, 0)
+flight_call_list <- c(freq_yes = mean(map_lgl(bird_collisions_light$flight_call, is_yes)),
+                      freq_no = mean(map_lgl(bird_collisions_light$flight_call, is_no)))
+
+print(flight_call_list)
+```
+
+From the results, we can conclude that most of the bird collisions happen within the flight callers which use vocal signals during their nocturnal migrations to function as important social cues that may aid in orientation, navigation and other decision-making behaviours. The effect of flight calling is evident so we need to consider the flight call in the following analysis.
+
+### Relationship Between Light and Collision {data-orientation=rows}
+
+```{r, echo=FALSE}
+
+#First, we classified two species with 'rare' calls as 'no'.
+bird_collisions_light$flight_call <-
+  map_chr(bird_collisions_light$flight_call, ~ if_else(.x == "Rare", "No", .x))
+
+# the bird collisions count among flight noncallers
+collision_counts_light_noncaller <- 
+  bird_collisions_light %>%
+  filter(flight_call == "No" ) %>%
+  group_by(light_score) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  split(.$light_score) %>%           
+  map_df(~ summarise(., light_score, count = sum(.$count))) 
+
+
+# the bird collisions count among flight callers
+collision_counts_light_caller <- 
+  bird_collisions_light %>%
+  filter(flight_call == "Yes") %>%
+  group_by(light_score) %>%
+  summarise(count = n()) %>%
+  ungroup() %>%
+  split(.$light_score) %>%           
+  map_df(~ summarise(., light_score, count = sum(.$count))) 
+
+
+# the bird collisions count 
+collision_counts_light <-  
+  bird_collisions_light %>%
+  group_by(light_score, flight_call) %>%
+  summarise(count = n()) %>%
+  group_split() %>%
+  bind_rows()
+
+```
+
+
+```{r, fig.dim = c(8,8)}
+
+ggplot(collision_counts_light) +
+  geom_smooth(mapping = aes(x = light_score, y = count, color = flight_call))+
+  geom_point(mapping = aes(x = light_score, y = count, color = flight_call)) +
+  facet_wrap(~flight_call, ncol = 1,  scales = "free" ) +
+  scale_color_manual(values = c("lightblue", "lightpink")) +
+  theme_classic(base_family = "Times") +
+  labs(
+    x = "Light Score",
+    y = "Bird Collisions Counts",
+    title = "The Relationship Between Light Levels and Bird Collision Counts",
+    subtitle = "The flight noncallers group and flight callers group show the same trend as the light score increases.\nAt first,the number of bird collisions decrease as the light increases,\nthen as light scores increase, the bird collision counts also tend to increase.\nIn general, the bird collisions maintain an upward trajectory.",
+    caption = "Jiayi Xue",
+    color = "Nocturnal Flight Call"
+  ) +
+  theme(
+        plot.title =  element_text(size = 14, face = "bold", hjust = 0.5),
+        plot.caption = element_text(size = 10),
+        axis.text.y = element_text(size = 9),
+        axis.title = element_text(size = 13),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 12))
+  
+
+
+
+```
+
+### Bird Collisions Counts
+
+
+```{r, echo=FALSE}
+
+bird_collisions_species <-
+  bird_collisions %>%
+  group_by(species, flight_call) %>%
+  summarise(count = n()) %>%
+  mutate(species = fct_reorder(species, count, .desc = T)) %>%
+  arrange(desc(count))
+
+
+```
+
+
+```{r, fig.dim=c(9, 7.5)}
+
+ggplot(bird_collisions_species[1:50, ]) +
+  geom_col(mapping = aes(x = count, y = reorder(species, count), fill = flight_call)) +
+  theme_classic(base_family = "Times") +
+  labs(
+    x = "Bird Collisions Counts",
+    y = "Bird Species",
+    title = "Bird Collisions Counts for Top 50 species",
+    subtitle = "From the bar plot, we can see that bird collisions happen most frequently among albicollis, with more than 10000 collisions.\nAmong top 50 species, most of the species are flight callers, which is consistent with our previous results.",
+    caption = "Jiayi Xue",
+    fill = "Nocturnal Flight Call",
+    
+  ) +
+  scale_fill_manual(values = c("lightblue", "lightpink")) +
+  theme(
+        plot.title =  element_text(size = 14, face = "bold", hjust = 0.5),
+        plot.caption = element_text(size = 10),
+        axis.text.x =  element_text(size = 10),
+        axis.text.y = element_text(size = 9),
+        axis.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 12))
+
+
+```
+
+### Distribution of Light
+
+```{r, echo=FALSE}
+light_years <-
+  mp_light %>%
+  mutate(year = lubridate::year(date)) 
+
+
+```
+
+
+```{r, fig.dim=c(9,6)}
+
+color_list <- 
+  colorRampPalette(ggsci::pal_npg("nrc", alpha = 0.6)(4),space = "Lab")(19)
+
+ggplot(light_years) +
+  geom_boxplot(mapping = aes(x = as.factor(year), y = light_score, fill = as.factor(year)), width = 0.5, alpha = 0.5) +
+  theme_classic(base_family = "Times") + 
+  labs(
+    x = "Year",
+    y = "Light Levels",
+    title = "Boxplots of Light Levels over Time",
+    fill = "Year",
+    subtitle = "The light levels have a fluctuating but overall increasing trend over time from the year 2000 to 2018. \nThe median light levels seem to be higher in the later years, particularly from 2014 to 2018.",
+    caption = "Jiayi Xue"
+  ) +
+  scale_fill_manual( values = color_list) +
+  theme(
+        plot.title =  element_text(size = 14, face = "bold", hjust = 0.5),
+        plot.caption = element_text(size = 10),
+        axis.text = element_text(size = 9),
+        axis.title = element_text(size = 12),
+        legend.position = "none")
+
+ 
+```
+
+### Summary
+
+The dataset collects the bird collision data in Chicago. The scatter plots shows that bird collisions happen more frequently as the light level increases. The bar plot displays the collision counts for the top 50 species, which indicates the evident effect of the flight calls. The boxplots indicates the overall increasing trend of the collisions over time. Together, we find that there are many factors influencing the number of bird collisions.
+
+# Light Levels Effect
+
+## Column {.sidebar}
+
+
+```{r}
+selectInput(inputId = "species_selected", 
+            label = "Select a bird species to see how light level affects them:",
+            choices = sort(unique(bird_collisions_light$species)))
+            
+bird_collisions$flight_call <-
+  map_chr(bird_collisions$flight_call, ~ if_else(.x == "Rare", "No", .x))
+
+```
+
+## Column
+
+### Light Levels Effect for Each Species 
+
+```{r}
+
+
+renderPlot({
+  collision_counts_light_species <-
+    bird_collisions_light %>%
+    filter(species == input$species_selected) %>%
+    group_by(light_score) %>%
+    summarise(count = n()) %>%
+    group_split() %>%
+    bind_rows()
+  
+  ggplot(collision_counts_light_species) + 
+    geom_smooth(mapping = aes(x = light_score, y = count), color = "lightblue") +
+    geom_point(mapping = aes(x = light_score, y = count), color = "lightblue") +
+    theme_classic(base_family = "Times") +
+    labs(
+    x = "Light Score",
+    y = "Bird Collisions Counts",
+    title = "The Relationship Between Light Levels and Bird Collision Counts",
+    caption = "Jiayi Xue"
+  ) +
+  theme(
+        plot.title =  element_text(size = 14, face = "bold", hjust = 0.5),
+        plot.caption = element_text(size = 10),
+        axis.text.y = element_text(size = 9),
+        axis.title = element_text(size = 13)) 
+})              
+
+```
+
+
+
+# Relationship Between Habitat and Collisions
+
+## Column {.sidebar}
+
+```{r}
+
+selectInput(inputId = "habitat_selected", 
+            label = "Select a habitat to see the relationship between habitat affinity and bird collisions count:",
+            choices = sort(unique(bird_collisions_light$habitat)))
+            
+```
+
+
+## Column
+
+
+```{r}
+
+renderPlot({
+  collision_counts_habitat_species <-
+    bird_collisions %>%
+    filter(habitat == input$habitat_selected) %>%
+    group_by(species, flight_call) %>%
+    summarise(count = n()) %>%
+    mutate(species = fct_reorder(species, count, .desc = T)) %>%
+    arrange(desc(count))
+
+
+ggplot(collision_counts_habitat_species[1:30, ]) +
+  geom_col(mapping = aes(x = count, y = reorder(species, count), fill = flight_call)) +
+  theme_classic(base_family = "Times") +
+  labs(
+    x = "Bird Collisions Counts",
+    y = "Bird Species",
+    title = "Bird Collisions Counts for Top 30 species",
+    caption = "Jiayi Xue",
+    fill = "Nocturnal Flight Call") +
+  scale_fill_manual(values = c("lightblue", "lightpink")) +
+  theme(
+        plot.title =  element_text(size = 14, face = "bold", hjust = 0.5),
+        plot.caption = element_text(size = 10),
+        axis.text.x =  element_text(size = 10),
+        axis.text.y = element_text(size = 9),
+        axis.title = element_text(size = 12),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 12))
+    
+})
+
+```
+

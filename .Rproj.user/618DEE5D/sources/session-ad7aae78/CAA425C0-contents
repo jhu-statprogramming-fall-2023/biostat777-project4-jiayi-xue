@@ -1,0 +1,68 @@
+---
+title: "methods_homework8"
+output: pdf_document
+date: "2023-12-17"
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+(c) Now, compute the exact P value by performing the permutation test.
+
+```{r}
+
+set.seed(20231216)
+sud_original <- c(60,25,6,8,2.5,10,25,15,10)
+control_original <- c(13,20,15,7,75,120,10,100,9,25,30)
+
+combined_data <- c(sud_original, control_original)
+
+na <- length(sud_original)
+nb <- length(control_original)
+
+ts_original <- mean(sud_original) - mean(control_original)
+
+
+extreme_P_list <- rep(0, 10000)
+ts <- rep(0, 10000)
+
+for (n in 1:10000) {
+  #split the data into two groups
+  group1_data_position <- sample(1:length(combined_data), size = na, replace = F)
+  group1 <- combined_data[group1_data_position]
+  group2_data_position <- as.vector(1:length(combined_data))[!1:length(combined_data) %in% group1_data_position]
+  group2 <- combined_data[group2_data_position]
+
+  ts[n] <- mean(group1) - mean(group2)
+
+ ifelse(ts[n] <= ts_original, extreme_P_list[n] <- 1, extreme_P_list[n] <- 0)
+ 
+}
+
+P <- 2 * mean(extreme_P_list)
+
+print(P)
+
+```
+
+(d) How do these results compare to the corresponding parametric test?
+
+```{r}
+
+sud_original <- c(60,25,6,8,2.5,10,25,15,10)
+control_original <- c(13,20,15,7,75,120,10,100,9,25,30)
+
+parametric_p <- t.test(sud_original, control_original)$p.value
+
+print(parametric_p)
+```
+
+The P value obtained from the two tests are similar.
+Compared to corresponding parametric test, the nonparametric test does not require the distributional assumption while the corresponding parametric test, t test, requires the normal assumption. The nonparametric test is less sensitive to the outlying observations.

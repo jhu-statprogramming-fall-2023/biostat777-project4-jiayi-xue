@@ -1,0 +1,38 @@
+---
+title: "take_home_Jiayi"
+output: pdf_document
+date: "2023-12-22"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(survival)
+```
+
+```{r}
+#load data
+kidney_infection <- read.csv("/Users/jiayixue/Downloads/take_home/kidney_infection.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+
+km.tx <- survfit(Surv(time, delta) ~ group, data = kidney_infection)
+
+plot(km.tx,
+     xlab = "Time", ylab = "Probability of infection",
+     col = c("red","blue"))
+legend("bottomleft",
+       legend=c("surgical", "percutaneous"),
+       title = "Group",
+       col=c("red", "blue"), 
+       lty=1,
+       cex=0.8)
+
+
+print(km.tx)
+
+```
+
+-   compare with those from part (b):
+Compared with the median from part (b), **..**

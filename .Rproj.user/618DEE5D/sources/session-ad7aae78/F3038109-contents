@@ -1,0 +1,65 @@
+---
+title: "methods_hw5"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-11-06"
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem1
+
+Through simulations (nsim=100,000) evaluate the coverage of the two nominal 95% confidence intervals derived in (B) and (C) for $\lambda$ = 0.2. You can take sample size n = 10. Is the exact approach more accurate than the CLT approximation approach?
+
+```{r}
+
+library(tidyverse)
+
+set.seed(20231106)
+
+alpha <- 0.05
+n <- 10
+lambda <- 0.2
+
+nsim <- 100000
+
+coverage_b <- rep(0, nsim)
+coverage_c <- rep(0, nsim)
+
+for (n_sim in 1:nsim) {
+  y_average <- mean(rexp(n, rate = lambda))
+  
+  CI_b <- c("lower_limit" = qgamma(alpha/2, n, n)/y_average,
+          "upper_limit" = qgamma(1-alpha/2, n, n)/y_average)
+  
+  ifelse(lambda >= CI_b["lower_limit"] && lambda <= CI_b["upper_limit"], 
+         coverage_b[n_sim] <- 1, coverage_b[n_sim] <- 0)
+  
+}
+
+mean(coverage_b)
+
+for (n_sim in 1:nsim) {
+  y_average <- mean(rexp(n, rate = lambda))
+  
+  CI_c <- c("lower_limit" = 1/y_average - qnorm(1-alpha/2)/(y_average*sqrt(n)) ,
+          "upper_limit" = 1/y_average + qnorm(1-alpha/2)/(y_average*sqrt(n)))
+  
+  ifelse(lambda >= CI_c["lower_limit"] && lambda <= CI_c["upper_limit"], 
+         coverage_c[n_sim] <- 1, coverage_c[n_sim] <- 0)
+  
+}
+
+mean(coverage_c)
+
+
+```
+
+-   Is the exact approach more accurate than the CLT approximation approach?
+
+    Yes. After simulation, the coverage of the confidence intervals calculated in (b) is closer to 0.95 compared to the confidence interval calculated using CLT. Therefore, the exact approach is more accurate than the CLT approximation approach
